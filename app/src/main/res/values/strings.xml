@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">FileDownload</string>
+    <plurals name="left_seconds">
+        <item quantity="one">seconds</item>
+        <item quantity="two">seconds</item>
+        <item quantity="other">seconds</item>
+    </plurals>
+    <plurals name="left_minutes">
+        <item quantity="one">minutes</item>
+        <item quantity="two">minutes</item>
+        <item quantity="many">minutes</item>
+        <item quantity="other">minutes</item>
+    </plurals>
+    <plurals name="left_hours">
+        <item quantity="one">hour</item>
+        <item quantity="two">hour</item>
+        <item quantity="other">hour</item>
+    </plurals>
+</resources>
