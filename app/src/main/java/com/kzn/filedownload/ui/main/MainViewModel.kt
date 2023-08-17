@@ -9,6 +9,6 @@ import kotlin.time.ExperimentalTime
 class MainViewModel : ViewModel() {
 
     fun startWorker(context: Context) {
-        FileDownloadWorker.startWork(context, "https://freetestdata.com/wp-content/uploads/2022/02/Free_Test_Data_1MB_MP4.mp4")
+        FileDownloadWorker.startWork(context, "https://builds.hb.bizmrg.com/icqAlpha/10013249/icq_10013249.apk")
     }
 }

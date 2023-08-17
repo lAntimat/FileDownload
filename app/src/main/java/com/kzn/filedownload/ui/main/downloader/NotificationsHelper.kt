@@ -9,8 +9,13 @@ import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kzn.filedownload.R
+import kotlin.time.ExperimentalTime
 
-class NotificationsHelper(private val context: Context) {
+class NotificationsHelper(
+    private val context: Context,
+    private val downloaderUtils: DownloaderUtils,
+    private val cancelIntent: PendingIntent
+    ) {
 
     private val channelId by lazy {
         createNotificationChannel(
@@ -22,7 +27,7 @@ class NotificationsHelper(private val context: Context) {
         )
     }
 
-    fun showProgressNotification(
+    private fun showProgressNotification(
         params: ProgressNotificationParams,
         cancelIntent: PendingIntent
     ): Notification {
@@ -38,10 +43,12 @@ class NotificationsHelper(private val context: Context) {
                 builder.setContentText(params.progressText)
                 builder.setProgress(100, params.progress, false)
             }
+
             is ProgressNotificationParams.Prepare -> {
                 builder.setContentTitle("Loading in progress")
                 builder.setProgress(0, 0, true)
             }
+
             is ProgressNotificationParams.WaitNetwork -> {
                 builder.setContentTitle("Waiting network")
                 builder.setProgress(0, 0, true)
@@ -74,6 +81,30 @@ class NotificationsHelper(private val context: Context) {
         notificationManager.notify(NOTIFICATION_FILE_DOWNLOADED_ID, notification)
         return notification
     }
+
+    val waitingNotification
+        get() = showProgressNotification(
+            ProgressNotificationParams.WaitNetwork("Wait connection"),
+            cancelIntent
+        )
+
+    val prepareNotification
+        get() = showProgressNotification(
+            ProgressNotificationParams.Prepare("File downloading"),
+            cancelIntent
+        )
+
+    @OptIn(ExperimentalTime::class)
+    fun progressNotification(progressText: String, progress: Int, timeLeft: Double) =
+        showProgressNotification(
+            ProgressNotificationParams.LoadingInProgress(
+                "Download in progress",
+                progress,
+                progressText,
+                downloaderUtils.formatTime(timeLeft)
+            ),
+            cancelIntent
+        )
 
     private fun createNotificationChannel(
         context: Context,

@@ -2,18 +2,53 @@ package com.kzn.filedownload.ui.main.downloader
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.ConnectivityManager.NetworkCallback
+import android.net.Network
 import com.kzn.filedownload.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.text.CharacterIterator
 import java.text.StringCharacterIterator
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
+
 
 class DownloaderUtils(
     private val context: Context,
     private val cm: ConnectivityManager
 ) {
+
+    suspend fun awaitNetworkAvailable() {
+        if (!hasInternetConnection()) {
+            waitNetworkAvailable()
+        }
+    }
+
+    private suspend fun waitNetworkAvailable() = suspendCancellableCoroutine<Unit> {
+        var callback: NetworkCallback? = null
+        callback = object : NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                it.resume(Unit)
+                callback?.let {callback ->
+                    cm.unregisterNetworkCallback(callback)
+                }
+            }
+
+            override fun onLost(network: Network) {
+
+            }
+        }
+        cm.registerDefaultNetworkCallback(callback)
+
+        it.invokeOnCancellation { cm.unregisterNetworkCallback(callback) }
+    }
 
     @ExperimentalTime
     fun formatTime(millis: Double): String {
@@ -22,14 +57,35 @@ class DownloaderUtils(
         val hours = Duration.milliseconds(millis).inWholeHours
         val time = when {
             seconds < SECONDS_MAX -> {
-                 "$seconds ${context.resources.getQuantityString(R.plurals.left_seconds, seconds.toInt(), seconds)} left"
+                "$seconds ${
+                    context.resources.getQuantityString(
+                        R.plurals.left_seconds,
+                        seconds.toInt(),
+                        seconds
+                    )
+                } left"
             }
+
             minutes < MINUTES_MAX -> {
-                "$minutes ${context.resources.getQuantityString(R.plurals.left_minutes, minutes.toInt(), minutes)} left"
+                "$minutes ${
+                    context.resources.getQuantityString(
+                        R.plurals.left_minutes,
+                        minutes.toInt(),
+                        minutes
+                    )
+                } left"
             }
+
             hours in 1..HOURS_MAX -> {
-                "$hours ${context.resources.getQuantityString(R.plurals.left_hours, hours.toInt(), hours)} left"
+                "$hours ${
+                    context.resources.getQuantityString(
+                        R.plurals.left_hours,
+                        hours.toInt(),
+                        hours
+                    )
+                } left"
             }
+
             else -> ""
         }
 

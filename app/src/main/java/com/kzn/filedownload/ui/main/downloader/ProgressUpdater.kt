@@ -1,7 +1,6 @@
 package com.kzn.filedownload.ui.main.downloader
 
 import android.os.SystemClock
-import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -12,23 +11,15 @@ import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
-import okhttp3.MediaType
-import okhttp3.ResponseBody
-import okio.Buffer
-import okio.BufferedSource
-import okio.ForwardingSource
-import okio.Source
-import okio.buffer
 
 @OptIn(FlowPreview::class)
-class ProgressResponseBody : ResponseBody() {
+class ProgressUpdater {
     private val coroutineScope = CoroutineScope(Dispatchers.IO + Job())
 
-    private var responseBody: ResponseBody? = null
     private var prevTime = SystemClock.elapsedRealtime()
     private var prevBytes = 1.0
 
-    private var _downloadedBytesFlow = MutableStateFlow(0.0)
+    private var _downloadedBytesFlow = MutableStateFlow(Update())
 
     private var _updateDownloadInfo = MutableStateFlow(DownloadProgress())
     val updateDownloadInfo get() = _updateDownloadInfo
@@ -41,8 +32,8 @@ class ProgressResponseBody : ResponseBody() {
                 .collect {
                     _updateDownloadInfo.emit(
                         _updateDownloadInfo.value.copy(
-                            bytesRead = it,
-                            contentLength = contentLength().toDouble()
+                            bytesRead = it.totalBytesRead.coerceAtLeast(0.0),
+                            contentLength = it.contentLength.toDouble()
                         )
                     )
                 }
@@ -52,62 +43,41 @@ class ProgressResponseBody : ResponseBody() {
             _downloadedBytesFlow
                 .sample(TIME_LEFT_UPDATE_DELAY)
                 .cancellable()
-                .collect { bytesRead ->
+                .collect { update ->
                     val currentTime = SystemClock.elapsedRealtime()
                     var timeLeft = 0.0
 
                     val deltaTime = currentTime - prevTime
-                    val deltaBytes = bytesRead - prevBytes
-
                     prevTime = currentTime
-                    prevBytes = bytesRead
+
+                    val deltaBytes = update.totalBytesRead - prevBytes
+                    prevBytes = update.totalBytesRead
 
                     val speed = deltaTime / deltaBytes.coerceAtLeast(1.0)
                     if (speed > 0) {
-                        timeLeft = ((contentLength() - bytesRead) * speed)
+                        timeLeft = ((update.contentLength - update.totalBytesRead) * speed)
                     }
                     _updateDownloadInfo.emit(_updateDownloadInfo.value.copy(timeLeft = timeLeft))
                 }
         }
     }
 
-    fun init(responseBody: ResponseBody?) {
-        this.responseBody = responseBody
-    }
-
     fun cancel() {
         coroutineScope.cancel()
     }
 
-    override fun contentType(): MediaType? {
-        return responseBody?.contentType()
+    suspend fun updateProgress(contentLength: Long, totalBytesRead: Double) {
+        _downloadedBytesFlow.emit(
+            Update(
+                contentLength, totalBytesRead
+            )
+        )
     }
 
-    override fun contentLength(): Long {
-        return responseBody?.contentLength() ?: 0L
-    }
-
-    override fun source(): BufferedSource {
-        val bufferedSource = responseBody?.let {
-            source(it.source()).buffer()
-        }
-        return bufferedSource ?: throw IllegalStateException("buffered source is null")
-    }
-
-    private fun source(source: Source): Source {
-        var totalBytesRead = 0.0
-        return object : ForwardingSource(source) {
-            @Throws(IOException::class)
-            override fun read(sink: Buffer, byteCount: Long): Long {
-                val bytesRead = super.read(sink, byteCount)
-                totalBytesRead += if (bytesRead != -1L) bytesRead else 0
-                coroutineScope.launch {
-                    _downloadedBytesFlow.emit(totalBytesRead)
-                }
-                return bytesRead
-            }
-        }
-    }
+    private data class Update(
+        val contentLength: Long = 0,
+        val totalBytesRead: Double = 0.0
+    )
 
     private companion object {
         const val TIME_LEFT_UPDATE_DELAY = 5000L
